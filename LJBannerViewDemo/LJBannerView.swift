@@ -18,6 +18,12 @@ protocol LJBannerViewDelegate {
     
 }
 
+extension LJBannerViewDelegate{
+    func bannerView(_ bannerView: LJBannerView, didSelectItemAt index: Int){
+        
+    }
+}
+
 class LJBannerCell: UICollectionViewCell{
     
     override func prepareForReuse() {
