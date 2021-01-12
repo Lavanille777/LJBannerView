@@ -18,12 +18,6 @@ protocol LJBannerViewDelegate {
     
 }
 
-extension LJBannerViewDelegate{
-    func bannerView(_ bannerView: LJBannerView, didSelectItemAt index: Int){
-        
-    }
-}
-
 class LJBannerCell: UICollectionViewCell{
     
     override func prepareForReuse() {
@@ -37,18 +31,6 @@ class LJBannerCell: UICollectionViewCell{
 
 class LJBannerView: UIView, UICollectionViewDelegate, UICollectionViewDataSource, UICollectionViewDelegateFlowLayout{
     
-    enum LJBannerViewError: Error{
-        case Error (String)
-    }
-    
-    var delegate: LJBannerViewDelegate?{
-        didSet{
-            if delegate != nil{
-                reloadData()
-            }
-        }
-    }
-    
     private var rollingTimer: Timer?
     
     private var collectionView: UICollectionView!
@@ -59,6 +41,18 @@ class LJBannerView: UIView, UICollectionViewDelegate, UICollectionViewDataSource
     
     private var flowLayout: UICollectionViewFlowLayout = UICollectionViewFlowLayout()
     
+    private var dataCount: Int = 0
+    
+    private var reuseQueues: [String: [UIView]] = [:]
+    
+    var delegate: LJBannerViewDelegate?{
+        didSet{
+            if delegate != nil{
+                reloadData()
+            }
+        }
+    }
+    
     var showIndicator: Bool = false{
         didSet{
             indicatorV.isHidden = !showIndicator || dataCount <= 1
@@ -68,10 +62,6 @@ class LJBannerView: UIView, UICollectionViewDelegate, UICollectionViewDataSource
     var pageIndicatorTintColor: UIColor = .lightGray
     
     var currentPageIndicatorTintColor: UIColor = .darkGray
-    
-    var reuseQueues: [String: [UIView]] = [:]
-    
-    var dataCount: Int = 0
     
     convenience init() {
         self.init(frame: .zero)
