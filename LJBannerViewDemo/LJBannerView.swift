@@ -35,11 +35,38 @@ class LJBannerCell: UICollectionViewCell{
     
 }
 
+class LJCollectionView: UICollectionView{
+    
+    var isUserDragEnabled: Bool = true
+    
+    override func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        
+        if gestureRecognizer is UIPanGestureRecognizer{
+            return isUserDragEnabled
+        }
+        
+        return true
+        
+    }
+}
+
 class LJBannerView: UIView, UICollectionViewDelegate, UICollectionViewDataSource, UICollectionViewDelegateFlowLayout{
+    
+    enum LJBannerViewError: Error{
+        case Error (String)
+    }
+    
+    var delegate: LJBannerViewDelegate?{
+        didSet{
+            if delegate != nil{
+                reloadData()
+            }
+        }
+    }
     
     private var rollingTimer: Timer?
     
-    private var collectionView: UICollectionView!
+    private var collectionView: LJCollectionView!
     
     private var currentPage: Int = 0
     
@@ -47,15 +74,9 @@ class LJBannerView: UIView, UICollectionViewDelegate, UICollectionViewDataSource
     
     private var flowLayout: UICollectionViewFlowLayout = UICollectionViewFlowLayout()
     
-    private var dataCount: Int = 0
-    
-    private var reuseQueues: [String: [UIView]] = [:]
-    
-    var delegate: LJBannerViewDelegate?{
+    var isUserDragEnabled: Bool = true{
         didSet{
-            if delegate != nil{
-                reloadData()
-            }
+            collectionView.isUserDragEnabled = isUserDragEnabled
         }
     }
     
@@ -69,6 +90,12 @@ class LJBannerView: UIView, UICollectionViewDelegate, UICollectionViewDataSource
     
     var currentPageIndicatorTintColor: UIColor = .darkGray
     
+    var reuseQueues: [String: [UIView]] = [:]
+    
+    var point: Int = 3
+    
+    var dataCount: Int = 0
+    
     convenience init() {
         self.init(frame: .zero)
     }
@@ -81,7 +108,7 @@ class LJBannerView: UIView, UICollectionViewDelegate, UICollectionViewDataSource
         flowLayout.estimatedItemSize = frame.size
         
         super.init(frame: frame)
-        collectionView = UICollectionView(frame: frame, collectionViewLayout: flowLayout)
+        collectionView = LJCollectionView(frame: frame, collectionViewLayout: flowLayout)
         collectionView.delegate = self
         collectionView.dataSource = self
         collectionView.showsVerticalScrollIndicator = false
