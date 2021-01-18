@@ -66,13 +66,15 @@ class LJBannerView: UIView, UICollectionViewDelegate, UICollectionViewDataSource
     
     private var rollingTimer: Timer?
     
-    private var collectionView: LJCollectionView!
+    var collectionView: LJCollectionView!
     
     private var currentPage: Int = 0
     
     private var indicatorV: UIPageControl = UIPageControl()
     
     private var flowLayout: UICollectionViewFlowLayout = UICollectionViewFlowLayout()
+    
+    private var isCyclic: Bool = true
     
     var isUserDragEnabled: Bool = true{
         didSet{
@@ -96,17 +98,44 @@ class LJBannerView: UIView, UICollectionViewDelegate, UICollectionViewDataSource
     
     var dataCount: Int = 0
     
+    var autoScrollPosition: UICollectionView.ScrollPosition = .left{
+        didSet{
+            if isAutoRoll && oldValue != autoScrollPosition{
+                startRollingLoop(withTimeInterval: rollTimerInterval, scrollPosition: autoScrollPosition)
+            }
+        }
+    }
+    
+    var isAutoRoll: Bool = false{
+        didSet{
+            if !oldValue && isAutoRoll{
+                startRollingLoop(withTimeInterval: rollTimerInterval, scrollPosition: autoScrollPosition)
+            }
+            if oldValue && !isAutoRoll{
+                stopRollingLoop()
+            }
+        }
+    }
+    
+    var rollTimerInterval: TimeInterval = 0{
+        didSet{
+            if isAutoRoll && oldValue != rollTimerInterval{
+                startRollingLoop(withTimeInterval: rollTimerInterval, scrollPosition: autoScrollPosition)
+            }
+        }
+    }
+    
     convenience init() {
         self.init(frame: .zero)
     }
     
-    init(frame: CGRect = .zero, scrollDirection: UICollectionView.ScrollDirection = .horizontal) {
+    init(frame: CGRect = .zero, isCyclic: Bool = true, scrollDirection: UICollectionView.ScrollDirection = .horizontal) {
         flowLayout = UICollectionViewFlowLayout()
         flowLayout.minimumInteritemSpacing = 0
         flowLayout.minimumLineSpacing = 0
         flowLayout.scrollDirection = scrollDirection
         flowLayout.estimatedItemSize = frame.size
-        
+        self.isCyclic = isCyclic
         super.init(frame: frame)
         collectionView = LJCollectionView(frame: frame, collectionViewLayout: flowLayout)
         collectionView.delegate = self
@@ -145,13 +174,19 @@ class LJBannerView: UIView, UICollectionViewDelegate, UICollectionViewDataSource
     }
     
     func reloadData(){
-        if let delegate = delegate {
-            dataCount = delegate.bannerView(numberOfViewsIn: self)
-            collectionView.isScrollEnabled = dataCount > 1
-            indicatorV.isHidden = !showIndicator || dataCount <= 1
-            indicatorV.numberOfPages = dataCount
-            indicatorV.pageIndicatorTintColor = pageIndicatorTintColor
-            indicatorV.currentPageIndicatorTintColor = currentPageIndicatorTintColor
+        guard let delegate = delegate else {
+            return
+        }
+        dataCount = delegate.bannerView(numberOfViewsIn: self)
+        collectionView.isScrollEnabled = dataCount > 1
+        indicatorV.isHidden = !showIndicator || dataCount <= 1
+        indicatorV.numberOfPages = dataCount
+        indicatorV.pageIndicatorTintColor = pageIndicatorTintColor
+        indicatorV.currentPageIndicatorTintColor = currentPageIndicatorTintColor
+        collectionView.contentOffset = flowLayout.scrollDirection == .horizontal ? CGPoint(x: self.frame.width, y: 0) : CGPoint(x: 0, y: self.frame.height)
+        currentPage = 1
+        if isAutoRoll{
+            startRollingLoop(withTimeInterval: rollTimerInterval, scrollPosition: autoScrollPosition)
         }
         collectionView.reloadData()
     }
@@ -213,33 +248,49 @@ class LJBannerView: UIView, UICollectionViewDelegate, UICollectionViewDataSource
     }
     
     func stopRollingLoop(){
+        isAutoRoll = false
         rollingTimer?.invalidate()
     }
     
     func startRollingLoop(withTimeInterval timeInterval: TimeInterval, scrollPosition: UICollectionView.ScrollPosition = .left){
+        isAutoRoll = true
+        rollTimerInterval = timeInterval
+        autoScrollPosition = scrollPosition
         guard dataCount > 1 else {
             return
         }
         rollingTimer?.invalidate()
         rollingTimer = Timer.scheduledTimer(withTimeInterval: timeInterval, repeats: true, block: {[weak self] (timer) in
             if let weakSelf = self{
+                
+                let currentPage = weakSelf.flowLayout.scrollDirection == .horizontal ? Int(weakSelf.collectionView.contentOffset.x / weakSelf.frame.width) : Int(weakSelf.collectionView.contentOffset.y / weakSelf.frame.height)
                 if scrollPosition == .left || scrollPosition == .top{
-                    weakSelf.collectionView.scrollToItem(at: IndexPath(item: weakSelf.currentPage + 1, section: 0), at: weakSelf.flowLayout.scrollDirection == .horizontal ? .left : .top, animated: true)
+                    if weakSelf.isCyclic && currentPage == weakSelf.dataCount - 1{
+                        weakSelf.collectionView.scrollToItem(at: IndexPath(item: 0, section: 0), at: scrollPosition, animated: true)
+                    }else{
+                        weakSelf.collectionView.scrollToItem(at: IndexPath(item: currentPage + 1, section: 0), at: scrollPosition, animated: true)
+                    }
                 }else{
-                    weakSelf.collectionView.scrollToItem(at: IndexPath(item: weakSelf.currentPage - 1, section: 0), at: scrollPosition, animated: true)
+                    if weakSelf.isCyclic && currentPage == 0{
+                        weakSelf.collectionView.scrollToItem(at: IndexPath(item: weakSelf.dataCount - 1, section: 0), at:  scrollPosition, animated: true)
+                    }else{
+                        weakSelf.collectionView.scrollToItem(at: IndexPath(item: currentPage - 1, section: 0), at: scrollPosition, animated: true)
+                    }
+                    
                 }
+                
             }
         })
     }
     
     //MARK: collectionView 相关代理
-
+    
     func collectionView(_ collectionView: UICollectionView, layout collectionViewLayout: UICollectionViewLayout, sizeForItemAt indexPath: IndexPath) -> CGSize {
         return self.frame.size
     }
     
     func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
-        return dataCount + 2
+        return dataCount == 0 ? 0 : (isCyclic ? dataCount + 2 : dataCount)
     }
     
     func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
@@ -258,7 +309,8 @@ class LJBannerView: UIView, UICollectionViewDelegate, UICollectionViewDataSource
         }else{
             index = indexPath.item - 1
         }
-        let view = delegate.bannerView(self, viewAt: index)
+        let view = delegate.bannerView(self, viewAt: isCyclic ? index : indexPath.item)
+        view.frame = self.bounds
         cell.contentView.addSubview(view)
         
         return cell
@@ -268,16 +320,21 @@ class LJBannerView: UIView, UICollectionViewDelegate, UICollectionViewDataSource
         guard let delegate = delegate else {
             return
         }
+        var index = 0
         if indexPath.item == 0{
-            delegate.bannerView(self, didSelectItemAt: dataCount - 1)
+            index = dataCount - 1
         }else if indexPath.item == dataCount + 1{
-            delegate.bannerView(self, didSelectItemAt: 0)
+            index = 0
         }else{
-            delegate.bannerView(self, didSelectItemAt: indexPath.item - 1)
+            index = indexPath.item - 1
         }
+        delegate.bannerView(self, didSelectItemAt: isCyclic ? index : indexPath.item)
     }
     
     func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
+        guard isCyclic else {
+            return
+        }
         let index = flowLayout.scrollDirection == .horizontal ? Int(scrollView.contentOffset.x / self.frame.width) : Int(scrollView.contentOffset.y / self.frame.height)
         if index == 0{
             indicatorV.currentPage = dataCount - 1
@@ -289,7 +346,9 @@ class LJBannerView: UIView, UICollectionViewDelegate, UICollectionViewDataSource
     }
     
     func scrollViewDidEndScrollingAnimation(_ scrollView: UIScrollView) {
-        
+        guard isCyclic else {
+            return
+        }
         let index = flowLayout.scrollDirection == .horizontal ? Int(scrollView.contentOffset.x / self.frame.width) : Int(scrollView.contentOffset.y / self.frame.height)
         if index == 0{
             indicatorV.currentPage = dataCount - 1
@@ -301,7 +360,9 @@ class LJBannerView: UIView, UICollectionViewDelegate, UICollectionViewDataSource
     }
     
     func scrollViewDidScroll(_ scrollView: UIScrollView) {
-        
+        guard isCyclic else {
+            return
+        }
         switch flowLayout.scrollDirection {
         case .horizontal:
             if scrollView.contentOffset.x == 0{
@@ -322,9 +383,11 @@ class LJBannerView: UIView, UICollectionViewDelegate, UICollectionViewDataSource
         }
         
     }
-
+    
     func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
-        
+        guard isCyclic else {
+            return
+        }
         switch flowLayout.scrollDirection {
         case .horizontal:
             let roundIndex = Int(roundf(Float(scrollView.contentOffset.x/self.frame.width)))
@@ -345,5 +408,5 @@ class LJBannerView: UIView, UICollectionViewDelegate, UICollectionViewDataSource
         }
         
     }
-
+    
 }
