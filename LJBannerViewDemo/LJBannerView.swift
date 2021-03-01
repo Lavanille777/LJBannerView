@@ -20,6 +20,10 @@ protocol LJBannerViewDelegate {
     
     func bannerView(didRoolToEnd bannerView: LJBannerView)
     
+    func bannerViewDidEndDecelerating(_ bannerView: LJBannerView, index: Int)
+    
+    func bannerViewDidEndScrollingAnimation(_ bannerView: LJBannerView, index: Int)
+    
 }
 
 extension LJBannerViewDelegate{
@@ -32,6 +36,14 @@ extension LJBannerViewDelegate{
     }
     
     func bannerView(didRoolToEnd bannerView: LJBannerView){
+        
+    }
+    
+    func bannerViewDidEndDecelerating(_ bannerView: LJBannerView, index: Int){
+        
+    }
+    
+    func bannerViewDidEndScrollingAnimation(_ bannerView: LJBannerView, index: Int){
         
     }
 }
@@ -375,19 +387,23 @@ class LJBannerView: UIView, UICollectionViewDelegate, UICollectionViewDataSource
         
         if !isCyclic {
             indicatorV.currentPage = index
-            return
+        }else{
+            if index == 0{
+                indicatorV.currentPage = dataCount - 1
+            }else if index == dataCount + 1{
+                indicatorV.currentPage = 0
+            }else{
+                indicatorV.currentPage = index - 1
+            }
+            if isAutoRoll{
+                startRollingLoop(withTimeInterval: rollTimerInterval)
+            }
         }
         
-        if index == 0{
-            indicatorV.currentPage = dataCount - 1
-        }else if index == dataCount + 1{
-            indicatorV.currentPage = 0
-        }else{
-            indicatorV.currentPage = index - 1
+        if let delegate = delegate{
+            delegate.bannerViewDidEndDecelerating(self, index: index)
         }
-        if isAutoRoll{
-            startRollingLoop(withTimeInterval: rollTimerInterval)
-        }
+        
     }
     
     func scrollViewDidEndScrollingAnimation(_ scrollView: UIScrollView) {
@@ -395,16 +411,20 @@ class LJBannerView: UIView, UICollectionViewDelegate, UICollectionViewDataSource
         
         if !isCyclic {
             indicatorV.currentPage = index
-            return
+        }else{
+            if index == 0{
+                indicatorV.currentPage = dataCount - 1
+            }else if index == dataCount + 1{
+                indicatorV.currentPage = 0
+            }else{
+                indicatorV.currentPage = index - 1
+            }
         }
         
-        if index == 0{
-            indicatorV.currentPage = dataCount - 1
-        }else if index == dataCount + 1{
-            indicatorV.currentPage = 0
-        }else{
-            indicatorV.currentPage = index - 1
+        if let delegate = delegate{
+            delegate.bannerViewDidEndScrollingAnimation(self, index: index)
         }
+        
     }
     
     func scrollViewDidScroll(_ scrollView: UIScrollView) {
